@@ -24,7 +24,7 @@ int Epoll::epoll_init(int maxevents, int listen_num)
 }
 
 //注册新的描述符  fd
-int Epoll::epoll_add(int fd, SP_ReqData request, __unit32_t events)
+int Epoll::epoll_add(int fd, SP_ReqData request, __uint32_t events)
 {
     struct epoll_event event;
     event.data.fd = fd;
@@ -39,7 +39,7 @@ int Epoll::epoll_add(int fd, SP_ReqData request, __unit32_t events)
 }
 
 //修改fd状态
-int Epoll::epoll_mod(int fd, SP_ReqData request, __unit32_t events)
+int Epoll::epoll_mod(int fd, SP_ReqData request, __uint32_t events)
 {
     struct epoll_event event;
     event.data.fd = 0;
@@ -48,17 +48,17 @@ int Epoll::epoll_mod(int fd, SP_ReqData request, __unit32_t events)
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event) < 0)
     {
         perror("epoll_mod error");
-        fd2req[fd].reset;
+        fd2req[fd].reset();
         return -1;
     }
     return 0;
 }
 
 //从 epoll 中删除描述符
-int Epoll::epoll_del(int fd, __unit32_t events)
+int Epoll::epoll_del(int fd, __uint32_t events)
 {
     struct epoll_event event;
-    event.data.df = 0;
+    event.data.fd = 0;
     event.events = events;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event) < 0)
     {
@@ -101,37 +101,41 @@ void Epoll::acceptConnection(int listen_fd, int epoll_fd, const std::string path
     memset(&client_addr, 0, sizeof(struct sockaddr_in));
     socklen_t client_addr_len = sizeof(client_addr);
     int accept_fd = 0;
-    while ((accept_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &client_addr_len)) > 0)
+    while ( (accept_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &client_addr_len)) >0)
     {
         std::cout << inet_ntoa(client_addr.sin_addr) << std::endl;
-        std::cout << ntohs(client_addr.sin_addr) << std::endl;
-    }
-    //限制服务器的最大并发连接数
-    if (accept_fd >= MAXFDS)
-    {
-        close(aceept_fd);
-        continue;
-    }
-    int ret = setSocketNonBlocking(accept_fd);
-    if (ret < 0)
-    {
-        perror("set non block failed");
-        return;
-    }
+        std::cout << ntohs(client_addr.sin_port) << std::endl;
 
-    SP_ReqData req_info(new RequestData(epoll_fd, accept_fd, path));
-    // 文件描述符可以读， 边缘出触发（Edge Triggered）模式，
-    //保证一个socket连接在任一时刻只被一个线程处理
-    __unit32_t _epo_event = EPOLLIN | EPOLLET | EPOLLONESHOT;
-    Epoll::epoll_add(accept_fd, req_info, epo_event);
-    timer_manager.addTimer(req_info, TIMER_TIME_OUT);
+        //限制服务器的最大并发连接数
+        if (accept_fd >= MAXFDS)
+        {
+            close(accept_fd);
+            continue;
+        }
+        
+        int ret = setSocketNonBlocking(accept_fd);
+        if (ret < 0)
+        {
+            perror("---/n");
+            perror("set non block failed \n");
+            return;
+        }
+    
+
+        SP_ReqData req_info(new RequestData(epoll_fd, accept_fd, path));
+        // 文件描述符可以读， 边缘出触发（Edge Triggered）模式，
+        //保证一个socket连接在任一时刻只被一个线程处理
+        __uint32_t _epo_event = EPOLLIN | EPOLLET | EPOLLONESHOT;
+        Epoll::epoll_add(accept_fd, req_info, _epo_event);
+        timer_manager.addTimer(req_info, TIMER_TIME_OUT);
+    }
 }
 
 // 分发处理函数
-std::vector<SP_ReqData> Epoll::getEventsRequest(int listen_fd, int events_num, const std::string path)
+std::vector<std::shared_ptr<RequestData>> Epoll::getEventsRequest(int listen_fd, int events_num, const std::string path)
 {
     std::vector<SP_ReqData> req_data;
-    for (int i = 0; i < events; ++i)
+    for (int i = 0; i < events_num; ++i)
     {
         //获取有事件产生的描述符
         int fd = events[i].data.fd;
@@ -141,7 +145,7 @@ std::vector<SP_ReqData> Epoll::getEventsRequest(int listen_fd, int events_num, c
         }
         else if (fd < 3)
         {
-            printf("fd < 3");
+            std::printf("fd < 3\n");
             break;
         }
         else
@@ -149,7 +153,7 @@ std::vector<SP_ReqData> Epoll::getEventsRequest(int listen_fd, int events_num, c
             // 排除错误事件
             if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP))
             {
-                print("error event\n");
+                std::printf("error event\n");
                 if (fd2req[fd])
                     fd2req[fd]->seperateTimer();
                 fd2req[fd].reset();
@@ -180,7 +184,7 @@ std::vector<SP_ReqData> Epoll::getEventsRequest(int listen_fd, int events_num, c
     return req_data;
 }
 
-void Epoll::add_timer(started_ptr<RequestData> request_data, int timeout)
+void Epoll::add_timer(SP_ReqData request_data, int timeout)
 {
     timer_manager.addTimer(request_data, timeout);
 }

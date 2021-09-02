@@ -1,16 +1,16 @@
 #pragma once
-
-//#include "timer.h"
+#include <bits/thread-shared-types.h>
+#include "timer.h"
 #include <string>
 #include <unordered_map>
-#include <memory>
-// #include <sys/epoll.h>
+#include <memory.h>
+#include <sys/epoll.h>
 
+#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/opencv.hpp>
-using namespace cv;
 
 const int STATE_PARSE_URI = 1;
 const int STATE_PARSE_HEADERS = 2;
@@ -104,7 +104,7 @@ private:
     int parse_Headers();
     int analysisRequest();
 
-    Mat stitch(Mat &src)
+    cv::Mat stitch(cv::Mat &src)
     {
         return src;
     }

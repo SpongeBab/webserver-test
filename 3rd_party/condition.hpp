@@ -4,16 +4,16 @@
 #include "mutexLock.hpp"
 #include <pthread.h>
 
-class Condition : nocopyable
+class Condition : noncopyable
 {
 public:
     explicit Condition(MutexLock &_mutex) : mutex(_mutex)
     {
-        pthread_cond_init(cond, NULL);
+        pthread_cond_init(&cond, NULL);
     }
     ~Condition()
     {
-        pthread_cond_destroy(cond);
+        pthread_cond_destroy(&cond);
     }
     void wait()
     {
@@ -31,4 +31,4 @@ public:
 private:
     MutexLock &mutex;
     pthread_cond_t cond;
-}
+};

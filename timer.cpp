@@ -8,13 +8,12 @@
 
 #include <iostream>
 
-TimerNode::TimerNode(SP_ReqData _request_data, int timeout)
+TimerNode::TimerNode(SP_ReqData _request_data, int timeout) : deleted(false),
+                                                              request_data(_request_data) //初始化列表方式
 {
-    deleted(false);
-    request_data(_request_data);
     {
-        std::cout << "Timernode() << " std::endl;
-        struct timerval now;
+        std::cout << "Timernode() " << std::endl;
+        struct timeval now;
         gettimeofday(&now, NULL);
 
         expired_time = ((now.tv_sec * 1000) + (now.tv_usec / 1000)) + timeout;
@@ -33,15 +32,28 @@ TimerNode::~TimerNode()
 void TimerNode::update(int timeout)
 {
     struct timeval now;
-    gettimeoftoday(&now, NULL);
-    size_t temp = ((now.tv_set * 1000) + (now.tv_usec / 1000));
+    gettimeofday(&now, NULL);
+    expired_time = ((now.tv_sec * 1000) + (now.tv_usec / 1000)) + timeout;
+}
+
+bool TimerNode::isvalid()
+{
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    size_t temp = ((now.tv_sec * 1000) + (now.tv_usec / 1000));
     if (temp < expired_time)
     {
         return true;
     }
+    else if (temp > expired_time)
+    {
+        return false;
+    }
     else
-        this->setDeleted;
-    return false;
+    {
+        this->setDeleted();
+        return false;
+    }
 }
 
 void TimerNode::clearReq()
@@ -55,14 +67,14 @@ void TimerNode::setDeleted()
     deleted = true;
 }
 
-void TimerNode::isDeleted()
+bool TimerNode::isDeleted() const
 {
     return deleted;
 }
 
 size_t TimerNode::getExpTime() const
 {
-    return expried_time;
+    return expired_time;
 }
 
 TimerManager::TimerManager()
@@ -73,14 +85,14 @@ TimerManager::~TimerManager()
 {
 }
 
-void TimerNode::addTimer(SP_ReqData request_data, int timeout)
+void TimerManager::addTimer(SP_ReqData request_data, int timeout)
 {
-    SP_TimerNode new_node(new TimerNode(request_data, timeout))
+    SP_TimerNode new_node(new TimerNode(request_data, timeout));
     {
         MutexLockGuard locker(lock);
         TimerNodeQueue.push(new_node);
     }
-    request_data->linkTimet(new_node);
+    request_data->linkTimer(new_node);
 }
 
 void TimerManager::addTimer(SP_TimerNode timer_node)
@@ -101,13 +113,13 @@ void TimerManager::addTimer(SP_TimerNode timer_node)
 减少了一次delete和一次new的时间。
 */
 
-void TimerNode::handle_expried_event()
+void TimerManager::handle_expired_event()
 {
     MutexLockGuard locker(lock);
     while (!TimerNodeQueue.empty())
     {
         SP_TimerNode ptimer_now = TimerNodeQueue.top();
-        if (ptimer_now->isdeleted())
+        if (ptimer_now->isDeleted())
         {
             TimerNodeQueue.pop();
         }

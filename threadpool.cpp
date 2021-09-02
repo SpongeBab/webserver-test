@@ -1,9 +1,9 @@
 #include "threadpool.h"
 
-pthread_mutex_t ThreadPool::lock = PTHREAD_MUTEX_INITINALZER;
+pthread_mutex_t ThreadPool::lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t ThreadPool::notify = PTHREAD_COND_INITIALIZER;
 std::vector<pthread_t> ThreadPool::threads;
-std::vector<ThreadPoolTask> ThreadPool::queue;
+std::vector<ThreadPollTask> ThreadPool::queue;
 int ThreadPool::thread_count = 0;
 int ThreadPool::queue_size = 0;
 int ThreadPool::head = 0;
@@ -11,6 +11,16 @@ int ThreadPool::tail = 0;
 int ThreadPool::count = 0;
 int ThreadPool::shutdown = 0;
 int ThreadPool::started = 0;
+
+void myHandler(std::shared_ptr<void> req)
+{
+    std::shared_ptr<RequestData> request = std::static_pointer_cast<RequestData>(req);
+    if (request->canWrite())
+        request->handleWrite();
+    else if (request->canRead())
+        request->handleRead();
+    request->handleConn();
+}
 
 int ThreadPool::threadpool_create(int _thread_count, int _queue_size)
 {
@@ -21,7 +31,7 @@ int ThreadPool::threadpool_create(int _thread_count, int _queue_size)
             _queue_size <= 0 || _queue_size > MAX_QUEUE)
         {
             _thread_count = 4;
-            -queue_size = 1024;
+            _queue_size = 1024;
         }
 
         thread_count = 0;
@@ -32,9 +42,9 @@ int ThreadPool::threadpool_create(int _thread_count, int _queue_size)
         queue.resize(_queue_size);
 
         //start thread worker
-        for (int i = 0; i < _thread_pool; ++i)
+        for (int i = 0; i < _thread_count; ++i)
         {
-            if (pthread_create(&threads[i], NULL, threadpool_thread, (void *)(0) != 0))
+            if (pthread_create(&threads[i], NULL, threadpool_thread, (void *)(0)) != 0)
             {
                 return -1;
             }
@@ -46,25 +56,15 @@ int ThreadPool::threadpool_create(int _thread_count, int _queue_size)
     {
         return -1;
     }
+    std::printf("ThreadPoll create success! /n");
     return 0;
-}
-
-void myHandler(std::shared_ptr<void> req)
-{
-    std::shared_ptr<RequestData> request = std::static_pointer_cast<RequestData>(req);
-    if (request->canWrite())
-        request->handleWrite();
-    else if (request->canRead)
-        request->handleRead;
-    request->handleConn();
 }
 
 int ThreadPool::threadpool_add(std::shared_ptr<void> args, std::function<void(std::shared_ptr<void>)> fun)
 {
     int next, err = 0;
-    if (pthread_mutex_lock(&lock) ! = 0)
+    if (pthread_mutex_lock(&lock) != 0)
         return THREADPOOL_LOCK_FAILURE;
-
     do
     {
         next = (tail + 1) % queue_size;
@@ -92,14 +92,14 @@ int ThreadPool::threadpool_add(std::shared_ptr<void> args, std::function<void(st
     } while (false);
     if (pthread_mutex_unlock(&lock) != 0)
     {
-        err THREADPOOL_LOCK_FAILURE;
+        err = THREADPOOL_LOCK_FAILURE;
         return err;
     }
 }
 
 int ThreadPool::threadpool_destroy(ShutDownOption shutdown_option)
 {
-    printf("Thread pool destory");
+    printf("Thread pool destory !\n");
     int i, err = 0;
     if (pthread_mutex_lock(&lock) != 0)
     {
@@ -118,7 +118,7 @@ int ThreadPool::threadpool_destroy(ShutDownOption shutdown_option)
             err = THREADPOOL_LOCK_FAILURE;
             break;
         }
-        for (int i = 0; i < thread_count; ++i)
+        for (i = 0; i < thread_count; ++i)
         {
             if (pthread_join(threads[i], NULL) != 0)
             {
@@ -133,11 +133,24 @@ int ThreadPool::threadpool_destroy(ShutDownOption shutdown_option)
     }
     return err;
 }
-int ThreadPool::threadpool_thread(void *args)
+
+int ThreadPool::threadpool_free()
+{
+    if (started > 0)
+    {
+        return -1;
+    }
+    pthread_mutex_lock(&lock);
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&notify);
+    return 0;
+}
+
+void *ThreadPool::threadpool_thread(void *args)
 {
     while (true)
     {
-        ThreadPoolTask task;
+        ThreadPollTask task;
         pthread_mutex_lock(&lock);
         while ((count == 0) && (!shutdown))
         {
@@ -151,10 +164,10 @@ int ThreadPool::threadpool_thread(void *args)
         task.args = queue[head].args;
         queue[head].fun = NULL;
         queue[head].args.reset();
-        head = (head + 1) % queue _size;
+        head = (head + 1) % queue_size;
         --count;
         pthread_mutex_unlock(&lock);
-        (task.fun)(task.args); // 这里应该是因为重载了(), 比较大小
+        (task.fun)(task.args); // ?? 可能这里应该是因为重载了(), 比较大小
     }
     --started;
     pthread_mutex_unlock(&lock);

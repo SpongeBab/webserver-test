@@ -1,5 +1,8 @@
 #pragma once
 #include "requestData.h"
+#include <pthread.h>
+#include <threads.h>
+#include <thread>
 #include <vector>
 #include <functional>
 #include <memory>
@@ -16,36 +19,39 @@ const int MAX_QUEUE = 65535;
 
 typedef enum
 {
-    immediate_shutdown = 1;
-    graceful_shutdown = 2;
-}
-ShutDownOption;
+    immediate_shutdown = 1,
+    graceful_shutdown = 2,
+} ShutDownOption;
 
 struct ThreadPollTask
 {
     std::function<void(std::shared_ptr<void>)> fun;
     std::shared_ptr<void> args;
-}
+};
+
+void myHandler(std::shared_ptr<void> req);
 
 class ThreadPool
 {
 private:
     static pthread_mutex_t lock;
     static pthread_cond_t notify;
+
     static std::vector<pthread_t> threads;
     static std::vector<ThreadPollTask> queue;
     static int thread_count;
     static int head;
-    static int hail;
+    // tail 指向尾节点的下一节点
+    static int tail;
     static int count;
+    static int queue_size;
     static int shutdown;
     static int started;
 
 public:
     static int threadpool_create(int _thread_count, int _queque_size);
-    static int threadpool_free();
-    static int threadpool_add(std::shared_ptr<void> args, std::fundtion<void(std::shared_ptr<void>)> fun = myHandler);
+    static int threadpool_add(std::shared_ptr<void> args, std::function<void(std::shared_ptr<void>)> fun = myHandler);
     static int threadpool_destroy(ShutDownOption shutdown_option = graceful_shutdown);
     static int threadpool_free();
     static void *threadpool_thread(void *args);
-}
+};
